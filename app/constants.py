@@ -2,6 +2,7 @@
 class Database:
     URI_TEMPLATE = "mysql+pymysql://{user}:{password}@{host}/{dbname}"
     TABLE_NAME_USERS = 'users'
+    TABLE_NAME_TASKS = 'tasks'
     COLUMN_ID = 'id'
     COLUMN_USERNAME = 'username'
     COLUMN_PASSWORD = 'password'
