@@ -1,15 +1,18 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, session
 from dotenv import load_dotenv
 import os
 from app import constants
 from .routes import main
 from werkzeug.security import generate_password_hash, check_password_hash
+from functools import wraps
+
+from datetime import datetime
+import secrets
+from flask_sqlalchemy import SQLAlchemy
+
 
 # Load environment variables from the .env file
 load_dotenv()
-from datetime import datetime
-
-from flask_sqlalchemy import SQLAlchemy
 
 # Create the SQLAlchemy instance
 db = SQLAlchemy()
@@ -47,6 +50,12 @@ app.config['SQLALCHEMY_DATABASE_URI'] = constants.Database.URI_TEMPLATE.format(
     host=os.getenv('DB_HOST'),
     dbname=os.getenv('DB_NAME')
 )
+app.secret_key = secrets.token_hex(32)
+
+# Configure session security
+app.config['SESSION_COOKIE_SECURE'] = False  # Set to True in production with HTTPS
+app.config['SESSION_COOKIE_HTTPONLY'] = True
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 app.register_blueprint(main)
 db.init_app(app)
 
@@ -119,8 +128,31 @@ def login():
         if not check_password_hash(user.password, password):
             return jsonify({'message': 'Incorrect password'}), 401  # Unauthorized
 
+        session['user_id'] = user.id
+        session['username'] = user.username
+
         return jsonify({'message': 'Login successful', 'user_id': user.id}), 200  # OK
 
     except Exception as e:
         print(f"Error occurred: {e}")
         return jsonify({'message': 'Internal Server Error'}), 500  # Internal Server Error
+
+
+@app.route('/logout', methods=['POST'])
+def logout():
+    session.clear()
+    return jsonify({'message': 'Logout successful'}), 200
+
+def login_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if 'user_id' not in session:
+            return jsonify({'message': 'Unauthorized'}), 401
+        return f(*args, **kwargs)
+    return decorated_function
+    
+@app.route('/protected', methods=['GET'])
+@login_required
+def protected():
+    return jsonify({'message': f'Welcome, {session["username"]}'}), 200
+
