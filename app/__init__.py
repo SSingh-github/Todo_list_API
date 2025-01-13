@@ -194,3 +194,120 @@ def create_task():
         db.session.rollback()
         print(f"Error occurred: {e}")
         return jsonify({'message': 'Internal Server Error'}), 500  # Internal Server Error
+
+
+@app.route('/tasks', methods=['GET'])
+@login_required
+def get_tasks():
+    try:
+        # Get the logged-in user ID from the session
+        user_id = session.get('user_id')
+
+        # Get query parameters for filtering
+        task_id = request.args.get('id', type=int)
+        status = request.args.get('status', type=str)
+
+        # Query the tasks for the logged-in user
+        query = Task.query.filter_by(user_id=user_id)
+
+        # Apply filters if provided
+        if task_id:
+            query = query.filter_by(id=task_id)
+        if status:
+            query = query.filter_by(status=status)
+
+        # Fetch the filtered tasks
+        tasks = query.all()
+
+        # Format the tasks for JSON response
+        tasks_list = [
+            {
+                'id': task.id,
+                'name': task.name,
+                'details': task.details,
+                'date_created': task.date_created.isoformat(),
+                'status': task.status
+            }
+            for task in tasks
+        ]
+
+        return jsonify({'tasks': tasks_list}), 200  # OK
+
+    except Exception as e:
+        print(f"Error occurred: {e}")
+        return jsonify({'message': 'Internal Server Error'}), 500  # Internal Server Error
+
+@app.route('/tasks', methods=['DELETE'])
+@login_required
+def delete_task():
+    try:
+        # Get the logged-in user ID from the session
+        user_id = session.get('user_id')
+
+        # Get the task ID from the query parameters
+        task_id = request.args.get('id', type=int)
+        if not task_id:
+            return jsonify({'message': 'Task ID is required'}), 400  # Bad Request
+
+        # Find the task for the logged-in user
+        task = Task.query.filter_by(id=task_id, user_id=user_id).first()
+
+        if not task:
+            return jsonify({'message': 'Task not found or unauthorized access'}), 404  # Not Found
+
+        # Delete the task
+        db.session.delete(task)
+        db.session.commit()
+
+        return jsonify({'message': 'Task deleted successfully'}), 200  # OK
+
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error occurred: {e}")
+        return jsonify({'message': 'Internal Server Error'}), 500  # Internal Server Error
+
+@app.route('/tasks', methods=['PUT'])
+@login_required
+def update_task():
+    try:
+        # Get the logged-in user ID from the session
+        user_id = session.get('user_id')
+
+        # Get the task ID from the query parameters
+        task_id = request.args.get('id', type=int)
+        if not task_id:
+            return jsonify({'message': 'Task ID is required'}), 400  # Bad Request
+
+        # Find the task for the logged-in user
+        task = Task.query.filter_by(id=task_id, user_id=user_id).first()
+        if not task:
+            return jsonify({'message': 'Task not found or unauthorized access'}), 404  # Not Found
+
+        # Parse the JSON payload
+        data = request.get_json()
+        if not data:
+            return jsonify({'message': 'No data provided'}), 400  # Bad Request
+
+        # Update only the provided fields
+        if 'name' in data:
+            task.name = data['name']
+        if 'details' in data:
+            task.details = data['details']
+        if 'status' in data:
+            task.status = data['status']
+
+        # Save changes to the database
+        db.session.commit()
+
+        return jsonify({'message': 'Task updated successfully', 'task': {
+            'id': task.id,
+            'name': task.name,
+            'details': task.details,
+            'date_created': task.date_created.isoformat(),
+            'status': task.status
+        }}), 200  # OK
+
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error occurred: {e}")
+        return jsonify({'message': 'Internal Server Error'}), 500  # Internal Server Error
