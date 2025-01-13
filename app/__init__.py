@@ -150,9 +150,47 @@ def login_required(f):
             return jsonify({'message': 'Unauthorized'}), 401
         return f(*args, **kwargs)
     return decorated_function
-    
+
 @app.route('/protected', methods=['GET'])
 @login_required
 def protected():
     return jsonify({'message': f'Welcome, {session["username"]}'}), 200
 
+# API to create a task
+@app.route('/tasks', methods=['POST'])
+@login_required
+def create_task():
+    try:
+        # Parse the JSON payload
+        data = request.get_json()
+        if not data:
+            return jsonify({'message': 'No data provided'}), 400  # Bad Request
+
+        # Extract task details
+        name = data.get('name')
+        details = data.get('details', '')
+
+        # Validate required fields
+        if not name:
+            return jsonify({'message': 'Task name is required'}), 400  # Bad Request
+
+        # Get the logged-in user ID from the session
+        user_id = session.get('user_id')
+
+        # Create a new task
+        new_task = Task(name=name, details=details, user_id=user_id)
+        db.session.add(new_task)
+        db.session.commit()
+
+        return jsonify({'message': 'Task created successfully', 'task': {
+            'id': new_task.id,
+            'name': new_task.name,
+            'details': new_task.details,
+            'date_created': new_task.date_created,
+            'status': new_task.status
+        }}), 201  # Created
+
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error occurred: {e}")
+        return jsonify({'message': 'Internal Server Error'}), 500  # Internal Server Error
